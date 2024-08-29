@@ -1,64 +1,58 @@
 #%%
 import gnupg
-import os
+import nest_asyncio
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
-# Configurar o diretório de chaves
-gpg = gnupg.GPG(gnupghome='/path/to/your/gpg-keys')
-
-# Importar as chaves públicas e privadas (se já não tiver importado)
-with open('/path/to/public_key.asc', 'r') as f:
-    gpg.import_keys(f.read())
-
-with open('/path/to/private_key.asc', 'r') as f:
-    gpg.import_keys(f.read())
-
-# Verificar as chaves importadas
-print(gpg.list_keys())
-print(gpg.list_keys(True))  # Para ver as chaves privadas
-
-#%%
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import gnupg
+# Permitir loops de eventos aninhados
+nest_asyncio.apply()
 
 # Configurar o GPG
-gpg = gnupg.GPG(gnupghome='/path/to/your/gpg-keys')
+def configure_gpg():
+    gpg = gnupg.GPG()
+    gpg.gnupghome = '/home/kali/keys/'
+    with open('/home/keys/chave_publica.asc', 'r') as f:
+        gpg.import_keys(f.read())
+    with open('/home/keys/chave_privada.asc', 'r') as f:
+        gpg.import_keys(f.read())
+    return gpg
 
 # Função para descriptografar mensagens
-def decrypt_message(encrypted_message):
+def decrypt_message(gpg, encrypted_message):
     decrypted_data = gpg.decrypt(encrypted_message)
     return str(decrypted_data)
 
 # Função para criptografar mensagens
-def encrypt_message(message, recipient):
+def encrypt_message(gpg, message, recipient):
     encrypted_data = gpg.encrypt(message, recipient)
     return str(encrypted_data)
 
 # Comando de inicialização
-def start(update, context):
+def start(update: Update, context: CallbackContext):
     update.message.reply_text('Envie uma mensagem criptografada.')
 
 # Função para lidar com mensagens recebidas
-def handle_message(update, context):
+def handle_message(update: Update, context: CallbackContext):
     encrypted_message = update.message.text
-    decrypted_message = decrypt_message(encrypted_message)
-    
-    # Responder com a mensagem descriptografada
-    update.message.reply_text(f'Mensagem descriptografada: {decrypted_message}')
+    decrypted_message = decrypt_message(gpg, encrypted_message)
     
     # Criar uma resposta criptografada
-    encrypted_reply = encrypt_message('Esta é uma resposta criptografada', 'seu_amigo@example.com')
-    update.message.reply_text(f'Mensagem criptografada para envio: {encrypted_reply}')
+    encrypted_reply = encrypt_message(gpg, 'Esta é uma resposta criptografada', 'robert@example.com')
+    
+    # Responder com a mensagem descriptografada e a resposta criptografada
+    response = f'Mensagem descriptografada: {decrypted_message}\nMensagem criptografada para envio: {encrypted_reply}'
+    update.message.reply_text(response)
 
 # Configurar o bot
 def main():
-    updater = Updater('YOUR_TELEGRAM_BOT_TOKEN', use_context=True)
-    dp = updater.dispatcher
+    gpg = configure_gpg()
+    application = Application.builder().token("TOKEN-BOT").build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
+# %%
