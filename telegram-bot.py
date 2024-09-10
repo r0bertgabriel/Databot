@@ -7,7 +7,8 @@ import threading
 import csv
 import os
 import uuid
-#%%
+
+# Chave da API do bot
 chave_api = "7381913977:AAEJe-u-DLY_1YRqB_zqw95mIQg3M84uhq8"
 bot = telebot.TeleBot(chave_api)
 
@@ -64,7 +65,7 @@ def agendar_envio_diario():
 @bot.message_handler(commands=['start'])
 def start(mensagem):
     chat_id = mensagem.chat.id
-    bot.send_message(chat_id, "Olá! Bem-vindo ao bot. Use /registro para iniciar o registro da sua empresa.")
+    bot.send_message(chat_id, "Olá! Bem-vindo ao bot. /registro /csv.")
 
 # Função para iniciar o registro
 @bot.message_handler(commands=['registro'])
@@ -159,6 +160,35 @@ def handle_registration(mensagem):
         # Mostra o menu de opções após o registro
         show_options_menu(chat_id)
 
+# Função para receber e salvar tabela CSV enviada pelo usuário
+@bot.message_handler(commands=['csv'])
+def receber_tabela_csv(mensagem):
+    user_states[mensagem.chat.id] = {'state': 'waiting_for_csv'}
+    bot.reply_to(mensagem, "Aguardando o envio do arquivo CSV...")
+
+@bot.message_handler(content_types=['document'])
+def handle_document(mensagem):
+    chat_id = mensagem.chat.id
+    state_info = user_states.get(chat_id, {})
+    if state_info.get('state') == 'waiting_for_csv':
+        try:
+            file_info = bot.get_file(mensagem.document.file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            if mensagem.document.mime_type == 'text/csv' or mensagem.document.file_name.endswith('.csv'):
+                src = os.path.join('/home/br4b0/Desktop/my_projects/datarejo/', mensagem.document.file_name)
+                with open(src, 'wb') as new_file:
+                    new_file.write(downloaded_file)
+                bot.reply_to(mensagem, "Arquivo CSV salvo com sucesso!")
+            else:
+                bot.reply_to(mensagem, "Por favor, envie um arquivo CSV.")
+        except Exception as e:
+            bot.reply_to(mensagem, f"Ocorreu um erro ao salvar o arquivo: {e}")
+        finally:
+            user_states[chat_id] = {}
+    else:
+        bot.reply_to(mensagem, "Não estou esperando o envio de um arquivo CSV no momento.")
+
 # Função para enviar imagem 1
 @bot.message_handler(commands=['imagem1'])
 def enviar_imagem1(mensagem):
@@ -184,6 +214,7 @@ def enviar_ajuda(mensagem):
 /imagem1 - Receber Imagem 1
 /imagem2 - Receber Imagem 2
 /imagem3 - Receber Imagem 3
+/csv - Receber arquivos CSV
 """
     bot.send_message(mensagem.chat.id, texto)
 
