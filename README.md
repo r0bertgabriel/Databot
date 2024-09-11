@@ -1,5 +1,5 @@
 ## Metas
 - [x] Receber csv
-- [ ] Ler  tipos de arquivos tabulares mais comuns
-- [ ] Implementar SQL
+- [ ] Ler  outros tipos de arquivos tabulares  comuns
+- [ ] Fazer o bot transformar tabelas .csv em db sql
 - [ ] Fazer Querys 
