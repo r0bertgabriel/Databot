@@ -7,8 +7,10 @@ import threading
 import csv
 import os
 import uuid
+import pandas as pd
 #%%
-chave_api = "7381913977:AAEJe-u-DLY_1YRqB_zqw95mIQg3M84uhq8"
+# Chave da API do bot
+chave_api = "TOKEN"
 bot = telebot.TeleBot(chave_api)
 
 # Dicionário para armazenar o estado do usuário
@@ -45,7 +47,18 @@ def show_options_menu(chat_id):
     botao2 = types.KeyboardButton('/imagem2')
     botao3 = types.KeyboardButton('/imagem3')
     botao4 = types.KeyboardButton('/ajuda')
-    markup.add(botao1, botao2, botao3, botao4)
+    botao5 = types.KeyboardButton('/csv')
+    botao6 = types.KeyboardButton('/listar_arquivos_csv')
+    botao7 = types.KeyboardButton('/sql')
+    botao8 = types.KeyboardButton('/query')
+    botao9 = types.KeyboardButton('/novo_registro')
+    botao10 = types.KeyboardButton('/editar_registro')
+    botao11 = types.KeyboardButton('/relacionar_registro')
+    botao12 = types.KeyboardButton('/imagem_diaria')
+    botao13 = types.KeyboardButton('/listar_arquivos_csv')
+
+    markup.add(botao1, botao2, botao3, botao4, botao5, botao6, 
+    botao7, botao8, botao9, botao10, botao11, botao12, botao13)
     bot.send_message(chat_id, "Escolha uma das opções abaixo:", reply_markup=markup)
 
 # Função para enviar imagem automaticamente uma vez ao dia
@@ -64,7 +77,7 @@ def agendar_envio_diario():
 @bot.message_handler(commands=['start'])
 def start(mensagem):
     chat_id = mensagem.chat.id
-    bot.send_message(chat_id, "Olá! Bem-vindo ao bot. Use /registro para iniciar o registro da sua empresa.")
+    bot.send_message(chat_id, "Olá! Bem-vindo ao bot. /registro /csv /exibir_coluna /sql /query  /listar_arquivos_csv.")
 
 # Função para iniciar o registro
 @bot.message_handler(commands=['registro'])
@@ -159,6 +172,35 @@ def handle_registration(mensagem):
         # Mostra o menu de opções após o registro
         show_options_menu(chat_id)
 
+# Função para receber e salvar tabela CSV enviada pelo usuário
+@bot.message_handler(commands=['csv'])
+def receber_tabela_csv(mensagem):
+    user_states[mensagem.chat.id] = {'state': 'waiting_for_csv'}
+    bot.reply_to(mensagem, "Aguardando o envio do arquivo CSV...")
+
+@bot.message_handler(content_types=['document'])
+def handle_document(mensagem):
+    chat_id = mensagem.chat.id
+    state_info = user_states.get(chat_id, {})
+    if state_info.get('state') == 'waiting_for_csv':
+        try:
+            file_info = bot.get_file(mensagem.document.file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            if mensagem.document.mime_type == 'text/csv' or mensagem.document.file_name.endswith('.csv'):
+                src = os.path.join('/home/br4b0/Desktop/my_projects/datarejo/', mensagem.document.file_name)
+                with open(src, 'wb') as new_file:
+                    new_file.write(downloaded_file)
+                bot.reply_to(mensagem, "Arquivo CSV salvo com sucesso!")
+            else:
+                bot.reply_to(mensagem, "Por favor, envie um arquivo CSV.")
+        except Exception as e:
+            bot.reply_to(mensagem, f"Ocorreu um erro ao salvar o arquivo: {e}")
+        finally:
+            user_states[chat_id] = {}
+    else:
+        bot.reply_to(mensagem, "Não estou esperando o envio de um arquivo CSV no momento.")
+
 # Função para enviar imagem 1
 @bot.message_handler(commands=['imagem1'])
 def enviar_imagem1(mensagem):
@@ -184,10 +226,82 @@ def enviar_ajuda(mensagem):
 /imagem1 - Receber Imagem 1
 /imagem2 - Receber Imagem 2
 /imagem3 - Receber Imagem 3
+/csv - Receber arquivos CSV
 """
     bot.send_message(mensagem.chat.id, texto)
 
+# Função para listar todos os arquivos CSV no diretório atual
+@bot.message_handler(commands=['listar_arquivos_csv'])
+def listar_arquivos_csv(mensagem):
+    arquivos_csv = [f for f in os.listdir('.') if f.endswith('.csv')]
+    if arquivos_csv:
+        markup = types.InlineKeyboardMarkup()
+        for arquivo in arquivos_csv:
+            markup.add(types.InlineKeyboardButton(arquivo, callback_data=f"arquivo:{arquivo}"))
+        bot.send_message(mensagem.chat.id, "Selecione um arquivo CSV:", reply_markup=markup)
+    else:
+        bot.send_message(mensagem.chat.id, "Nenhum arquivo CSV encontrado no diretório atual.")
+
+# Função para detectar o delimitador do CSV
+def detectar_delimitador(nome_arquivo):
+    with open(nome_arquivo, 'r') as file:
+        linha = file.readline()
+        if ';' in linha:
+            return ';'
+        elif ',' in linha:
+            return ','
+        elif '\t' in linha:
+            return '\t'
+        else:
+            return ','  # Padrão para CSV
+
+# Função para listar colunas de um arquivo CSV específico
+def listar_colunas_arquivo(chat_id, nome_arquivo):
+    try:
+        delimitador = detectar_delimitador(nome_arquivo)
+        df = pd.read_csv(nome_arquivo, delimiter=delimitador)
+        colunas = df.columns.tolist()
+        if colunas:
+            markup = types.InlineKeyboardMarkup()
+            for coluna in colunas:
+                # Limitar o tamanho do callback_data para evitar erros
+                callback_data = f"coluna:{nome_arquivo}:{coluna}"[:64]
+                markup.add(types.InlineKeyboardButton(coluna, callback_data=callback_data))
+            bot.send_message(chat_id, f"Selecione uma coluna do arquivo {nome_arquivo}:", reply_markup=markup)
+        else:
+            bot.send_message(chat_id, f"O arquivo {nome_arquivo} não possui colunas.")
+    except Exception as e:
+        bot.send_message(chat_id, f"Erro ao ler o arquivo CSV: {str(e)}")
+
+# Função para exibir conteúdo de uma coluna
+def exibir_coluna(chat_id, nome_arquivo, coluna):
+    try:
+        delimitador = detectar_delimitador(nome_arquivo)
+        df = pd.read_csv(nome_arquivo, delimiter=delimitador)
+        if coluna in df.columns:
+            conteudo = df[coluna].describe().to_string()
+            bot.send_message(chat_id, f"Resumo da coluna {coluna} do arquivo {nome_arquivo}:\n{conteudo}")
+        else:
+            bot.send_message(chat_id, "Coluna não encontrada.")
+    except Exception as e:
+        bot.send_message(chat_id, f"Erro ao exibir a coluna: {str(e)}")
+
+# Função para lidar com callbacks dos botões inline
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    if call.data.startswith("arquivo:"):
+        nome_arquivo = call.data.split(":")[1]
+        listar_colunas_arquivo(call.message.chat.id, nome_arquivo)
+    elif call.data.startswith("coluna:"):
+        _, nome_arquivo, coluna = call.data.split(":")
+        exibir_coluna(call.message.chat.id, nome_arquivo, coluna)
+
 # Iniciar o agendamento em um thread separado
+def agendar_envio_diario():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
 threading.Thread(target=agendar_envio_diario).start()
 
 # Iniciar o bot
