@@ -1,5 +1,6 @@
-## Metas
+## Bot (goals)
 - [x] Receber csv
-- [ ] Ler  tipos de arquivos tabulares mais comuns
-- [ ] Implementar SQL
-- [ ] Fazer Querys 
+- [ ] Ler  outros tipos de arquivos tabulares  comuns
+- [ ] Fazer os valores aparecerem em listas para o usuário ou listadas com opções de seleção
+- [ ] Fazer o bot transformar tabelas .csv em db sql
+- [ ] Fazer o bot personalizar querys
