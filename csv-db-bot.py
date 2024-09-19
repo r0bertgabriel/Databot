@@ -9,7 +9,7 @@ import pandas as pd
 import sqlite3
 
 # Chave da API do bot
-chave_api = "TOKEN"
+chave_api = "7381913977:AAEJe-u-DLY_1YRqB_zqw95mIQg3M84uhq8"
 bot = telebot.TeleBot(chave_api)
 
 # Dicionário para armazenar o estado do usuário
@@ -21,11 +21,11 @@ def start(mensagem):
     chat_id = mensagem.chat.id
     bot.send_message(chat_id, "Olá! Bem-vindo ao bot. /csv /sql /sql_table /listar_arquivos_csv.")
 
-# Função para receber e salvar tabela CSV enviada pelo usuário
+# Função para receber e salvar tabelas CSV enviadas pelo usuário
 @bot.message_handler(commands=['csv'])
-def receber_tabela_csv(mensagem):
+def receber_tabelas_csv(mensagem):
     user_states[mensagem.chat.id] = {'state': 'waiting_for_csv'}
-    bot.reply_to(mensagem, "Aguardando o envio do arquivo CSV...")
+    bot.reply_to(mensagem, "Aguardando o envio dos arquivos CSV...")
 
 @bot.message_handler(content_types=['document'])
 def handle_document(mensagem):
@@ -33,34 +33,38 @@ def handle_document(mensagem):
     state_info = user_states.get(chat_id, {})
     if state_info.get('state') == 'waiting_for_csv':
         try:
-            file_info = bot.get_file(mensagem.document.file_id)
+            if not os.path.exists('csv'):
+                os.makedirs('csv')
+
+            document = mensagem.document
+            file_info = bot.get_file(document.file_id)
             downloaded_file = bot.download_file(file_info.file_path)
             
-            if mensagem.document.mime_type == 'text/csv' or mensagem.document.file_name.endswith('.csv'):
-                src = os.path.join('.', mensagem.document.file_name)
+            if document.mime_type == 'text/csv' or document.file_name.endswith('.csv'):
+                src = os.path.join('csv', document.file_name)
                 with open(src, 'wb') as new_file:
                     new_file.write(downloaded_file)
-                bot.reply_to(mensagem, "Arquivo CSV salvo com sucesso!")
+                bot.reply_to(mensagem, f"Arquivo CSV {document.file_name} salvo com sucesso!")
             else:
-                bot.reply_to(mensagem, "Por favor, envie um arquivo CSV.")
+                bot.reply_to(mensagem, f"Por favor, envie um arquivo CSV. {document.file_name} não é um CSV.")
         except Exception as e:
-            bot.reply_to(mensagem, f"Ocorreu um erro ao salvar o arquivo: {e}")
-        finally:
-            user_states[chat_id] = {}
+            bot.reply_to(mensagem, f"Ocorreu um erro ao salvar os arquivos: {e}")
     else:
-        bot.reply_to(mensagem, "Não estou esperando o envio de um arquivo CSV no momento.")
+        bot.reply_to(mensagem, "Não estou esperando o envio de arquivos CSV no momento.")
 
-# Função para listar todos os arquivos CSV no diretório atual
+# Função para listar todos os arquivos CSV na pasta 'csv'
 @bot.message_handler(commands=['listar_arquivos_csv'])
 def listar_arquivos_csv(mensagem):
-    arquivos_csv = [f for f in os.listdir('.') if f.endswith('.csv')]
+    if not os.path.exists('csv'):
+        os.makedirs('csv')
+    arquivos_csv = [f for f in os.listdir('csv') if f.endswith('.csv')]
     if arquivos_csv:
         markup = types.InlineKeyboardMarkup()
         for arquivo in arquivos_csv:
             markup.add(types.InlineKeyboardButton(arquivo, callback_data=f"arquivo:{arquivo}"))
         bot.send_message(mensagem.chat.id, "Selecione um arquivo CSV:", reply_markup=markup)
     else:
-        bot.send_message(mensagem.chat.id, "Nenhum arquivo CSV encontrado no diretório atual.")
+        bot.send_message(mensagem.chat.id, "Nenhum arquivo CSV encontrado na pasta 'csv'.")
 
 # Função para detectar o delimitador do CSV
 def detectar_delimitador(nome_arquivo):
@@ -77,15 +81,32 @@ def detectar_delimitador(nome_arquivo):
 
 # Função para adicionar arquivo CSV como tabela no banco de dados
 @bot.message_handler(commands=['sql'])
-def listar_arquivos_para_sql(mensagem):
-    arquivos_csv = [f for f in os.listdir('.') if f.endswith('.csv')]
+def listar_opcoes_sql(mensagem):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("Adicionar um arquivo", callback_data="sql_opcao:um_arquivo"))
+    markup.add(types.InlineKeyboardButton("Adicionar todos os arquivos", callback_data="sql_opcao:todos_arquivos"))
+    bot.send_message(mensagem.chat.id, "Selecione uma opção:", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("sql_opcao:"))
+def selecionar_opcao_sql(call):
+    opcao = call.data.split(":")[1]
+    chat_id = call.message.chat.id
+    if opcao == "um_arquivo":
+        listar_arquivos_para_sql(chat_id)
+    elif opcao == "todos_arquivos":
+        adicionar_todos_arquivos_sql(chat_id)
+
+def listar_arquivos_para_sql(chat_id):
+    if not os.path.exists('csv'):
+        os.makedirs('csv')
+    arquivos_csv = [f for f in os.listdir('csv') if f.endswith('.csv')]
     if arquivos_csv:
         markup = types.InlineKeyboardMarkup()
         for arquivo in arquivos_csv:
             markup.add(types.InlineKeyboardButton(arquivo, callback_data=f"sql_arquivo:{arquivo}"))
-        bot.send_message(mensagem.chat.id, "Selecione um arquivo CSV para adicionar como tabela no banco de dados:", reply_markup=markup)
+        bot.send_message(chat_id, "Selecione um arquivo CSV para adicionar como tabela no banco de dados:", reply_markup=markup)
     else:
-        bot.send_message(mensagem.chat.id, "Nenhum arquivo CSV encontrado no diretório atual.")
+        bot.send_message(chat_id, "Nenhum arquivo CSV encontrado na pasta 'csv'.")
 
 def adicionar_tabela_sql(chat_id, nome_arquivo):
     try:
@@ -94,14 +115,28 @@ def adicionar_tabela_sql(chat_id, nome_arquivo):
             conn = sqlite3.connect('tabelas.db')
             conn.close()
 
-        delimitador = detectar_delimitador(nome_arquivo)
-        df = pd.read_csv(nome_arquivo, delimiter=delimitador)
+        delimitador = detectar_delimitador(os.path.join('csv', nome_arquivo))
+        df = pd.read_csv(os.path.join('csv', nome_arquivo), delimiter=delimitador)
         conn = sqlite3.connect('tabelas.db')
         df.to_sql(name=os.path.splitext(nome_arquivo)[0], con=conn, if_exists='replace', index=False)
         conn.close()
         bot.send_message(chat_id, f"Arquivo {nome_arquivo} adicionado como tabela no banco de dados.")
     except Exception as e:
         bot.send_message(chat_id, f"Erro ao adicionar tabela no banco de dados: {str(e)}")
+
+def adicionar_todos_arquivos_sql(chat_id):
+    try:
+        if not os.path.exists('csv'):
+            os.makedirs('csv')
+        arquivos_csv = [f for f in os.listdir('csv') if f.endswith('.csv')]
+        if arquivos_csv:
+            for arquivo in arquivos_csv:
+                adicionar_tabela_sql(chat_id, arquivo)
+            bot.send_message(chat_id, "Todos os arquivos CSV foram adicionados como tabelas no banco de dados.")
+        else:
+            bot.send_message(chat_id, "Nenhum arquivo CSV encontrado na pasta 'csv'.")
+    except Exception as e:
+        bot.send_message(chat_id, f"Erro ao adicionar tabelas no banco de dados: {str(e)}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("sql_arquivo:"))
 def callback_adicionar_tabela_sql(call):
