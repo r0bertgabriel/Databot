@@ -103,7 +103,7 @@ def salvar_arquivo_csv(mensagem):
         bot.reply_to(mensagem, f"Ocorreu um erro ao salvar os arquivos: {e}")
 
 def salvar_arquivo_txt(mensagem):
-    chat_id = mensagem.chat.id
+    chat_id = mensagem.chat.idgit
     try:
         if not os.path.exists('txt'):
             os.makedirs('txt')
