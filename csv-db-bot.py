@@ -21,63 +21,62 @@ bot = telebot.TeleBot(api_key)
 # Dicionário para armazenar o estado do usuário
 user_states = {}
 
+# Arte ASCII para a mensagem de boas-vindas
+ascii_art = """
+██████╗░░█████╗░████████╗
+██╔══██╗██╔══██╗╚══██╔══╝
+██████╔╝███████║░░░██║░░░
+██╔═══╝░██╔══██║░░░██║░░░
+██║░░░░░██║░░██║░░░██║░░░
+╚═╝░░░░░╚═╝░░╚═╝░░░╚═╝░░░
+"""
+
 # Função para iniciar a interação com o bot
 @bot.message_handler(commands=['start'])
 def start(mensagem):
     chat_id = mensagem.chat.id
-    user_states[chat_id] = {'state': 'waiting_for_password'}
-    bot.send_message(chat_id, "Por favor, insira a senha de administrador:")
-
-@bot.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get('state') == 'waiting_for_password')
-def verificar_senha(mensagem):
-    chat_id = mensagem.chat.id
-    senha = mensagem.text
-    if senha == 'tomate':
-        user_states[chat_id] = {'state': 'authenticated'}
-        comandos = [
-            "/csv - Enviar arquivos CSV",
-            "/txt - Enviar arquivos TXT e transformá-los em CSV",
-            "/db - Adicionar arquivos CSV ao banco de dados",
-            "/sql_table - Listar tabelas no banco de dados",
-            "/listar_arquivos_csv - Listar arquivos CSV na pasta 'csv'"
-        ]
-        resposta = "Senha correta! Aqui estão os comandos disponíveis:\n" + "\n".join(comandos)
-        bot.send_message(chat_id, resposta)
+    comandos = [
+        "/csv - Enviar arquivos CSV",
+        "/txt - Enviar arquivos TXT e transformá-los em CSV",
+        "/db - Adicionar arquivos CSV ao banco de dados",
+        "/sql_table - Listar tabelas no banco de dados",
+        "/listar_arquivos_csv - Listar arquivos CSV na pasta 'csv'"
+    ]
+    resposta = "Olá! Bem-vindo ao bot. Aqui estão os comandos disponíveis:\n" + "\n".join(comandos)
+    bot.send_message(chat_id, ascii_art)
+    bot.send_message(chat_id, resposta)
+    
+    # Enviar o vídeo de boas-vindas como animação
+    video_path = 'gif.mp4'
+    if os.path.exists(video_path):
+        with open(video_path, 'rb') as video:
+            bot.send_animation(chat_id, video)
     else:
-        bot.send_message(chat_id, "Senha incorreta. Por favor, tente novamente.")
+        bot.send_message(chat_id, "O vídeo de boas-vindas não foi encontrado.")
 
 # Função para receber e salvar tabelas CSV enviadas pelo usuário
 @bot.message_handler(commands=['csv'])
 def receber_tabelas_csv(mensagem):
     chat_id = mensagem.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        user_states[chat_id] = {'state': 'waiting_for_csv'}
-        bot.reply_to(mensagem, "Aguardando o envio dos arquivos CSV...")
-    else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+    user_states[chat_id] = {'state': 'waiting_for_csv'}
+    bot.reply_to(mensagem, "Aguardando o envio dos arquivos CSV...")
 
 @bot.message_handler(commands=['txt'])
 def receber_tabelas_txt(mensagem):
     chat_id = mensagem.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        user_states[chat_id] = {'state': 'waiting_for_txt'}
-        bot.reply_to(mensagem, "Aguardando o envio dos arquivos TXT...")
-    else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+    user_states[chat_id] = {'state': 'waiting_for_txt'}
+    bot.reply_to(mensagem, "Aguardando o envio dos arquivos TXT...")
 
 @bot.message_handler(content_types=['document'])
 def handle_document(mensagem):
     chat_id = mensagem.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        state_info = user_states.get(chat_id, {})
-        if state_info.get('state') == 'waiting_for_csv':
-            salvar_arquivo_csv(mensagem)
-        elif state_info.get('state') == 'waiting_for_txt':
-            salvar_arquivo_txt(mensagem)
-        else:
-            bot.reply_to(mensagem, "Não estou esperando o envio de arquivos no momento.")
+    state_info = user_states.get(chat_id, {})
+    if state_info.get('state') == 'waiting_for_csv':
+        salvar_arquivo_csv(mensagem)
+    elif state_info.get('state') == 'waiting_for_txt':
+        salvar_arquivo_txt(mensagem)
     else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+        bot.reply_to(mensagem, "Não estou esperando o envio de arquivos no momento.")
 
 def salvar_arquivo_csv(mensagem):
     chat_id = mensagem.chat.id
@@ -132,19 +131,16 @@ def salvar_arquivo_txt(mensagem):
 @bot.message_handler(commands=['listar_arquivos_csv'])
 def listar_arquivos_csv(mensagem):
     chat_id = mensagem.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        if not os.path.exists('csv'):
-            os.makedirs('csv')
-        arquivos_csv = [f for f in os.listdir('csv') if f.endswith('.csv')]
-        if arquivos_csv:
-            markup = types.InlineKeyboardMarkup()
-            for arquivo in arquivos_csv:
-                markup.add(types.InlineKeyboardButton(arquivo, callback_data=f"arquivo:{arquivo}"))
-            bot.send_message(mensagem.chat.id, "Selecione um arquivo CSV:", reply_markup=markup)
-        else:
-            bot.send_message(mensagem.chat.id, "Nenhum arquivo CSV encontrado na pasta 'csv'.")
+    if not os.path.exists('csv'):
+        os.makedirs('csv')
+    arquivos_csv = [f for f in os.listdir('csv') if f.endswith('.csv')]
+    if arquivos_csv:
+        markup = types.InlineKeyboardMarkup()
+        for arquivo in arquivos_csv:
+            markup.add(types.InlineKeyboardButton(arquivo, callback_data=f"arquivo:{arquivo}"))
+        bot.send_message(mensagem.chat.id, "Selecione um arquivo CSV:", reply_markup=markup)
     else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+        bot.send_message(mensagem.chat.id, "Nenhum arquivo CSV encontrado na pasta 'csv'.")
 
 # Função para detectar o delimitador do CSV
 def detectar_delimitador(nome_arquivo):
@@ -163,25 +159,19 @@ def detectar_delimitador(nome_arquivo):
 @bot.message_handler(commands=['db'])
 def listar_opcoes_db(mensagem):
     chat_id = mensagem.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("Adicionar um arquivo", callback_data="db_opcao:um_arquivo"))
-        markup.add(types.InlineKeyboardButton("Adicionar todos os arquivos", callback_data="db_opcao:todos_arquivos"))
-        bot.send_message(mensagem.chat.id, "Escolha uma opção:", reply_markup=markup)
-    else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("Adicionar um arquivo", callback_data="db_opcao:um_arquivo"))
+    markup.add(types.InlineKeyboardButton("Adicionar todos os arquivos", callback_data="db_opcao:todos_arquivos"))
+    bot.send_message(mensagem.chat.id, "Escolha uma opção:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("db_opcao:"))
 def callback_opcao_db(call):
     chat_id = call.message.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        opcao = call.data.split(":")[1]
-        if opcao == "um_arquivo":
-            listar_arquivos_para_db(call.message)
-        elif opcao == "todos_arquivos":
-            adicionar_todos_arquivos_db(call.message.chat.id)
-    else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+    opcao = call.data.split(":")[1]
+    if opcao == "um_arquivo":
+        listar_arquivos_para_db(call.message)
+    elif opcao == "todos_arquivos":
+        adicionar_todos_arquivos_db(call.message.chat.id)
 
 def listar_arquivos_para_db(mensagem):
     if not os.path.exists('csv'):
@@ -218,11 +208,8 @@ def adicionar_todos_arquivos_db(chat_id):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("db_arquivo:"))
 def callback_adicionar_tabela_db(call):
     chat_id = call.message.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        nome_arquivo = call.data.split(":")[1]
-        adicionar_tabela_db(call.message.chat.id, nome_arquivo)
-    else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+    nome_arquivo = call.data.split(":")[1]
+    adicionar_tabela_db(call.message.chat.id, nome_arquivo)
 
 def adicionar_tabela_db(chat_id, nome_arquivo):
     try:
@@ -243,43 +230,37 @@ def adicionar_tabela_db(chat_id, nome_arquivo):
 @bot.message_handler(commands=['sql_table'])
 def listar_tabelas(mensagem):
     chat_id = mensagem.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        conn = sqlite3.connect('tabelas.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tabelas = cursor.fetchall()
-        conn.close()
+    conn = sqlite3.connect('tabelas.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tabelas = cursor.fetchall()
+    conn.close()
 
-        if tabelas:
-            markup = types.InlineKeyboardMarkup()
-            for tabela in tabelas:
-                markup.add(types.InlineKeyboardButton(tabela[0], callback_data=f"tabela:{tabela[0]}"))
-            bot.send_message(chat_id, "Selecione uma tabela para ver as colunas disponíveis:", reply_markup=markup)
-        else:
-            bot.send_message(chat_id, "Nenhuma tabela encontrada no banco de dados.")
+    if tabelas:
+        markup = types.InlineKeyboardMarkup()
+        for tabela in tabelas:
+            markup.add(types.InlineKeyboardButton(tabela[0], callback_data=f"tabela:{tabela[0]}"))
+        bot.send_message(chat_id, "Selecione uma tabela para ver as colunas disponíveis:", reply_markup=markup)
     else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+        bot.send_message(chat_id, "Nenhuma tabela encontrada no banco de dados.")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("tabela:"))
 def listar_colunas(call):
     chat_id = call.message.chat.id
-    if user_states.get(chat_id, {}).get('state') == 'authenticated':
-        tabela = call.data.split(":")[1]
-        conn = sqlite3.connect('tabelas.db')
-        cursor = conn.cursor()
-        cursor.execute(f"PRAGMA table_info({tabela});")
-        colunas = cursor.fetchall()
-        conn.close()
+    tabela = call.data.split(":")[1]
+    conn = sqlite3.connect('tabelas.db')
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({tabela});")
+    colunas = cursor.fetchall()
+    conn.close()
 
-        if colunas:
-            colunas_str = "\n".join([coluna[1] for coluna in colunas])
-            bot.send_message(chat_id, f"Colunas disponíveis na tabela {tabela}:\n{colunas_str}")
-            bot.send_message(chat_id, "Agora você pode digitar sua consulta SQL.")
-            user_states[chat_id] = {'state': 'waiting_for_query', 'tabela': tabela}
-        else:
-            bot.send_message(chat_id, "Nenhuma coluna encontrada na tabela.")
+    if colunas:
+        colunas_str = "\n".join([coluna[1] for coluna in colunas])
+        bot.send_message(chat_id, f"Colunas disponíveis na tabela {tabela}:\n{colunas_str}")
+        bot.send_message(chat_id, "Agora você pode digitar sua consulta SQL.")
+        user_states[chat_id] = {'state': 'waiting_for_query', 'tabela': tabela}
     else:
-        bot.send_message(chat_id, "Por favor, insira a senha de administrador primeiro usando /start.")
+        bot.send_message(chat_id, "Nenhuma coluna encontrada na tabela.")
 
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get('state') == 'waiting_for_query')
 def executar_query_personalizada(mensagem):
