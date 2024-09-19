@@ -9,7 +9,7 @@ import pandas as pd
 import sqlite3
 
 # Chave da API do bot
-chave_api = "7381913977:AAEJe-u-DLY_1YRqB_zqw95mIQg3M84uhq8"
+chave_api = "TOKEN"
 bot = telebot.TeleBot(chave_api)
 
 # Dicionário para armazenar o estado do usuário
