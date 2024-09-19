@@ -15,8 +15,6 @@ load_dotenv()
 api_key = os.getenv('API_KEY')
 secret_key = os.getenv('SECRET_KEY')
 db_password = os.getenv('DB_PASSWORD')
-
-#chave_api = "7381913977:AAEJe-u-DLY_1YRqB_zqw95mIQg3M84uhq8"
 bot = telebot.TeleBot(api_key)
 
 # Dicionário para armazenar o estado do usuário
