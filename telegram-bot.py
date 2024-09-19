@@ -8,10 +8,17 @@ import csv
 import os
 import uuid
 import pandas as pd
-#%%
-# Chave da API do bot
-chave_api = "TOKEN"
-bot = telebot.TeleBot(chave_api)
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Acessar as variáveis de ambiente
+api_key = os.getenv('API_KEY')
+secret_key = os.getenv('SECRET_KEY')
+db_password = os.getenv('DB_PASSWORD')
+
+bot = telebot.TeleBot(api_key)
+
 
 # Dicionário para armazenar o estado do usuário
 user_states = {}
