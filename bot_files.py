@@ -16,6 +16,9 @@ load_dotenv()
 api_key = os.getenv('API_KEY')
 secret_key = os.getenv('SECRET_KEY')
 db_password = os.getenv('DB_PASSWORD')
+if api_key is None:
+    raise ValueError("API_KEY environment variable not found")
+
 
 bot = telebot.TeleBot(api_key)
 # Dicionário para armazenar o estado do usuário
